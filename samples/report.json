@@ -1,0 +1,91 @@
+[
+  {
+    "url": "http://127.0.0.1:8011",
+    "status": 200,
+    "score": 20,
+    "grade": "F",
+    "present": {
+      "Server": "demo-server/1.2.3",
+      "X-Powered-By": "PHP/7.4.3"
+    },
+    "findings": [
+      {
+        "header": "(transport)",
+        "severity": "high",
+        "message": "The site was served over plain HTTP.",
+        "fix": "Serve everything over HTTPS and redirect HTTP to it."
+      },
+      {
+        "header": "Content-Security-Policy",
+        "severity": "medium",
+        "message": "No enforced Content-Security-Policy.",
+        "fix": "Start with: default-src 'self'; frame-ancestors 'self'; object-src 'none'"
+      },
+      {
+        "header": "X-Content-Type-Options",
+        "severity": "medium",
+        "message": "X-Content-Type-Options: nosniff is not set.",
+        "fix": "X-Content-Type-Options: nosniff"
+      },
+      {
+        "header": "X-Frame-Options",
+        "severity": "medium",
+        "message": "The page can be framed by any site (clickjacking).",
+        "fix": "X-Frame-Options: DENY, or CSP frame-ancestors 'self'"
+      },
+      {
+        "header": "Set-Cookie",
+        "severity": "medium",
+        "message": "Cookie 'PHPSESSID' is missing HttpOnly, SameSite.",
+        "fix": "Set cookies with Secure; HttpOnly; SameSite=Lax (or Strict)."
+      },
+      {
+        "header": "Referrer-Policy",
+        "severity": "low",
+        "message": "Referrer-Policy is not set.",
+        "fix": "Referrer-Policy: strict-origin-when-cross-origin"
+      },
+      {
+        "header": "Permissions-Policy",
+        "severity": "low",
+        "message": "Permissions-Policy is not set.",
+        "fix": "Permissions-Policy: camera=(), microphone=(), geolocation=()"
+      },
+      {
+        "header": "Server",
+        "severity": "low",
+        "message": "Server reveals a software version ('demo-server/1.2.3').",
+        "fix": "Remove the version from the Server header."
+      },
+      {
+        "header": "X-Powered-By",
+        "severity": "low",
+        "message": "X-Powered-By reveals a software version ('PHP/7.4.3').",
+        "fix": "Remove the version from the X-Powered-By header."
+      }
+    ]
+  },
+  {
+    "url": "http://127.0.0.1:8012",
+    "status": 200,
+    "score": 80,
+    "grade": "B",
+    "present": {
+      "Strict-Transport-Security": "max-age=63072000; includeSubDomains; preload",
+      "Content-Security-Policy": "default-src 'self'; frame-ancestors 'none'; object-src 'none'",
+      "X-Content-Type-Options": "nosniff",
+      "X-Frame-Options": "DENY",
+      "Referrer-Policy": "strict-origin-when-cross-origin",
+      "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+      "Server": "demo-server"
+    },
+    "findings": [
+      {
+        "header": "(transport)",
+        "severity": "high",
+        "message": "The site was served over plain HTTP.",
+        "fix": "Serve everything over HTTPS and redirect HTTP to it."
+      }
+    ]
+  }
+]

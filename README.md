@@ -71,6 +71,20 @@ Exit codes: `0` OK, `1` a grade is below `--fail-under`, `2` a URL could not be 
 - run: headerscan https://staging.example.com --fail-under B
 ```
 
+## Demo server
+
+`demo/insecure_server.py` serves a page with no protections, and the same page
+hardened, so you can see both ends of the scale without touching a real site:
+
+```bash
+python demo/insecure_server.py --port 8011 &            # F: no headers at all
+python demo/insecure_server.py --port 8012 --secure &   # B: all headers, but plain HTTP
+headerscan http://127.0.0.1:8011 http://127.0.0.1:8012
+```
+
+The hardened one scores B, not A, because it is served over HTTP and that alone
+costs 20 points. `samples/report.json` is the JSON output of exactly that run.
+
 ## Development
 
 The tests start a local HTTP server, so they need no internet access.
