@@ -1,0 +1,508 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>headerscan — HTTP Security Header Grader Demo</title>
+  <meta name="description" content="Interactive demo of headerscan: paste response headers, get an A–F grade and exact fixes — all in the browser.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%232563eb'/><text x='16' y='23' font-size='16' text-anchor='middle' fill='white' font-family='monospace'>HS</text></svg>">
+  <style>
+    :root {
+      --bg: #f6f7f9; --surface: #ffffff; --surface-2: #eef0f4; --border: #dde1e8;
+      --text: #16181d; --muted: #5d6573; --accent: #2563eb; --accent-ink: #ffffff;
+      --good: #15803d; --bad: #b91c1c; --warn: #d97706;
+      --radius: 12px;
+      --shadow: 0 1px 2px rgb(16 24 40 / 0.06), 0 4px 16px rgb(16 24 40 / 0.05);
+      --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      color-scheme: light;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0e1116; --surface: #161a21; --surface-2: #1d222b; --border: #2a303b;
+        --text: #e8eaee; --muted: #9aa3b2; --accent: #60a5fa; --accent-ink: #0b1220;
+        --good: #4ade80; --bad: #f87171; --warn: #fbbf24;
+        --shadow: none; color-scheme: dark;
+      }
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; }
+    body {
+      font: 15px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg); color: var(--text); -webkit-font-smoothing: antialiased;
+    }
+    a { color: var(--accent); }
+    .wrap { max-width: 960px; margin: 0 auto; padding: 24px 16px 48px; }
+    header.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+    header.top h1 { font-size: 22px; margin: 0; letter-spacing: -0.01em; }
+    header.top p { margin: 2px 0 0; color: var(--muted); }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; box-shadow: var(--shadow); min-width: 0; margin-bottom: 16px; }
+    .card h2 { font-size: 15px; margin: 0 0 12px; }
+    .grid { display: grid; gap: 16px; }
+    .grid.two { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+    label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+    input, select, textarea, button { font: inherit; color: inherit; }
+    input, select, textarea {
+      width: 100%; padding: 9px 11px; border-radius: 9px;
+      border: 1px solid var(--border); background: var(--surface-2); outline: none; min-width: 0;
+    }
+    textarea { font-family: var(--mono); font-size: 13px; line-height: 1.45; resize: vertical; }
+    input:focus-visible, textarea:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+    button {
+      cursor: pointer; border: 1px solid var(--border); background: var(--surface-2);
+      padding: 9px 14px; border-radius: 9px; font-weight: 600;
+    }
+    button.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+    .row { display: flex; gap: 10px; align-items: end; flex-wrap: wrap; }
+    .row > * { flex: 1 1 200px; }
+    .row > button { flex: 0 0 auto; }
+    .muted { color: var(--muted); }
+    .mono { font-family: var(--mono); }
+    .presets { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+    .presets button { font-size: 13px; padding: 5px 10px; font-weight: 500; }
+    .grade-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin: 4px 0 12px; }
+    .grade {
+      width: 64px; height: 64px; border-radius: 14px; display: flex; align-items: center; justify-content: center;
+      font-size: 32px; font-weight: 800; color: #fff; flex: 0 0 auto;
+    }
+    .grade.A { background: var(--good); }
+    .grade.B { background: #65a30d; }
+    .grade.C { background: var(--warn); color: #111; }
+    .grade.D { background: #ea580c; }
+    .grade.F { background: var(--bad); }
+    .score-pill { font-family: var(--mono); font-size: 20px; font-weight: 700; }
+    .score-pill small { display: block; font-size: 12px; color: var(--muted); font-weight: 500; }
+    .finding { padding: 10px 12px; border-radius: 8px; margin: 8px 0; font-size: 14px; border: 1px solid var(--border); background: var(--surface-2); }
+    .finding .top { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+    .sev { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; padding: 2px 7px; border-radius: 99px; }
+    .sev.high { background: var(--bad); color: #fff; }
+    .sev.medium { background: var(--warn); color: #111; }
+    .sev.low { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
+    .sev.info { background: var(--surface); color: var(--muted); border: 1px solid var(--border); }
+    .hdr { font-family: var(--mono); font-weight: 600; font-size: 13px; }
+    .msg { margin-top: 4px; color: var(--text); }
+    .fix { margin-top: 6px; font-size: 13px; color: var(--muted); }
+    .fix code { font-family: var(--mono); background: var(--surface); border: 1px solid var(--border); padding: 1px 6px; border-radius: 4px; color: var(--good); }
+    .ok-box { background: color-mix(in srgb, var(--good) 10%, transparent); border: 1px solid color-mix(in srgb, var(--good) 30%, transparent); border-radius: 8px; padding: 12px; color: var(--good); font-weight: 600; }
+    .present { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .present span { font-family: var(--mono); font-size: 12px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 3px 8px; color: var(--muted); }
+    footer { margin-top: 32px; color: var(--muted); font-size: 13px; text-align: center; }
+    code { font-family: var(--mono); font-size: 0.92em; background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+    th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+    .table-wrap { overflow-x: auto; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="top">
+      <div>
+        <h1>headerscan — HTTP Security Header Grader</h1>
+        <p>Paste response headers, get an A–F grade and the exact fix for every finding. No network — pure JS port of <code>checks.py</code>.</p>
+      </div>
+      <a href="https://github.com/umer-78/security-headers-scanner">Source on GitHub</a>
+    </header>
+
+    <section class="card">
+      <h2>Grade a response</h2>
+      <div class="row">
+        <div>
+          <label for="url">URL (scheme decides the transport finding)</label>
+          <input id="url" class="mono" value="http://127.0.0.1:8011" spellcheck="false">
+        </div>
+        <div>
+          <label for="status">HTTP status</label>
+          <input id="status" type="number" value="200" min="100" max="599">
+        </div>
+        <div style="flex:0 0 auto">
+          <button class="primary" id="runBtn" type="button">Grade</button>
+        </div>
+      </div>
+      <div class="presets">
+        <button type="button" data-preset="insecure">Preset: insecure (F)</button>
+        <button type="button" data-preset="hardened">Preset: hardened HTTP (B)</button>
+        <button type="button" data-preset="https">Preset: full HTTPS (A)</button>
+        <button type="button" data-preset="common">Preset: typical app</button>
+      </div>
+      <div style="margin-top:12px">
+        <label for="headers">Response headers (one per line, <code>Name: value</code>; repeat Set-Cookie as needed)</label>
+        <textarea id="headers" rows="10" spellcheck="false"></textarea>
+      </div>
+    </section>
+
+    <section class="card" aria-live="polite">
+      <h2>Result</h2>
+      <div class="grade-row">
+        <div class="grade F" id="gradeBox" aria-label="Grade">F</div>
+        <div class="score-pill" id="scorePill">20/100<small id="urlLine">http://127.0.0.1:8011 (HTTP 200)</small></div>
+      </div>
+      <div id="presentBox" class="present" aria-label="Headers present"></div>
+      <div id="findings" style="margin-top:12px"></div>
+    </section>
+
+    <div class="grid two">
+      <section class="card">
+        <h2>Scoring</h2>
+        <p class="muted" style="margin-top:0">Score starts at 100 and subtracts per finding:</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Severity</th><th>Penalty</th></tr></thead>
+            <tbody>
+              <tr><td>high</td><td>−20</td></tr>
+              <tr><td>medium</td><td>−10</td></tr>
+              <tr><td>low</td><td>−5</td></tr>
+              <tr><td>info</td><td>0</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="muted" style="margin-bottom:0">Grades: <b>A</b> ≥ 90, <b>B</b> ≥ 80, <b>C</b> ≥ 65, <b>D</b> ≥ 50, else <b>F</b>.</p>
+      </section>
+
+      <section class="card">
+        <h2>What it checks</h2>
+        <ul class="muted" style="margin:0;padding-left:20px">
+          <li>HTTPS in use · HSTS (max-age ≥ 180 days)</li>
+          <li>CSP: present, no bare <code>unsafe-inline</code>, no wildcard script hosts</li>
+          <li><code>X-Content-Type-Options: nosniff</code></li>
+          <li>Clickjacking: XFO or CSP <code>frame-ancestors</code></li>
+          <li>Referrer-Policy, Permissions-Policy</li>
+          <li>Version numbers in Server / X-Powered-By</li>
+          <li>Cookies: Secure, HttpOnly, SameSite</li>
+        </ul>
+        <p class="muted" style="margin-bottom:0">The CLI sends one GET per URL — only scan sites you own or may test.</p>
+      </section>
+    </div>
+
+    <footer>10 tests · Python 3.10+ · CI-friendly exit codes · Built by <a href="https://github.com/umer-78">Umer Hashmi</a></footer>
+  </div>
+
+  <script>
+    'use strict';
+    const PRESETS = {
+      insecure: {
+        url: 'http://127.0.0.1:8011',
+        headers: [
+          'Server: demo-server/1.2.3',
+          'X-Powered-By: PHP/7.4.3',
+          'Content-Type: text/html; charset=UTF-8',
+          'Set-Cookie: PHPSESSID=abc123; path=/'
+        ].join('\n')
+      },
+      hardened: {
+        url: 'http://127.0.0.1:8012',
+        headers: [
+          'Strict-Transport-Security: max-age=63072000; includeSubDomains; preload',
+          "Content-Security-Policy: default-src 'self'; frame-ancestors 'none'; object-src 'none'",
+          'X-Content-Type-Options: nosniff',
+          'X-Frame-Options: DENY',
+          'Referrer-Policy: strict-origin-when-cross-origin',
+          'Permissions-Policy: camera=(), microphone=(), geolocation=()',
+          'Server: demo-server',
+          'Set-Cookie: session=xyz; Path=/; HttpOnly; SameSite=Lax'
+        ].join('\n')
+      },
+      https: {
+        url: 'https://example.com/',
+        headers: [
+          'Strict-Transport-Security: max-age=31536000; includeSubDomains',
+          "Content-Security-Policy: default-src 'self'; frame-ancestors 'self'; object-src 'none'",
+          'X-Content-Type-Options: nosniff',
+          'X-Frame-Options: SAMEORIGIN',
+          'Referrer-Policy: strict-origin-when-cross-origin',
+          'Permissions-Policy: camera=(), microphone=(), geolocation=()',
+          'Cross-Origin-Opener-Policy: same-origin',
+          'Server: nginx',
+          'Set-Cookie: session=abc; Path=/; Secure; HttpOnly; SameSite=Lax'
+        ].join('\n')
+      },
+      common: {
+        url: 'https://shop.example.com/',
+        headers: [
+          'Server: Apache/2.4.57 (Unix)',
+          'X-Powered-By: PHP/8.2.11',
+          'Content-Type: text/html',
+          'Set-Cookie: PHPSESSID=deadbeef; path=/',
+          'Set-Cookie: cart=1; path=/'
+        ].join('\n')
+      }
+    };
+
+    const PENALTY = { high: 20, medium: 10, low: 5, info: 0 };
+
+    function parseHeaders(text) {
+      // Multi-map, case-insensitive keys
+      const map = new Map();
+      for (const raw of text.split('\n')) {
+        const line = raw.trim();
+        if (!line) continue;
+        const i = line.indexOf(':');
+        if (i < 0) continue;
+        const name = line.slice(0, i).trim();
+        const value = line.slice(i + 1).trim();
+        const key = name.toLowerCase();
+        if (!map.has(key)) map.set(key, { name, values: [] });
+        map.get(key).values.push(value);
+      }
+      return {
+        get(name) {
+          const e = map.get(name.toLowerCase());
+          return e ? e.values[0] : null;
+        },
+        getAll(name) {
+          const e = map.get(name.toLowerCase());
+          return e ? e.values : [];
+        },
+        present() {
+          const out = {};
+          for (const e of map.values()) out[e.name] = e.values.join(', ');
+          return out;
+        }
+      };
+    }
+
+    function gradeOf(score) {
+      for (const [limit, g] of [[90, 'A'], [80, 'B'], [65, 'C'], [50, 'D']]) {
+        if (score >= limit) return g;
+      }
+      return 'F';
+    }
+
+    function cspFindings(value) {
+      const out = [];
+      const directives = {};
+      for (const part of value.split(';')) {
+        const bits = part.trim().split(/\s+/).filter(Boolean);
+        if (bits.length) directives[bits[0].toLowerCase()] = bits.slice(1).map(b => b.toLowerCase());
+      }
+      const scripts = directives['script-src'] || directives['default-src'];
+      if (!scripts) {
+        out.push({
+          header: 'Content-Security-Policy', severity: 'medium',
+          message: 'CSP has neither script-src nor default-src, so scripts are unrestricted.',
+          fix: "Add default-src 'self' (then widen only what you need)."
+        });
+      } else {
+        const hasNonceOrHash = scripts.some(s => s.startsWith("'nonce-") || s.startsWith("'sha"));
+        if (scripts.includes("'unsafe-inline'") && !hasNonceOrHash) {
+          out.push({
+            header: 'Content-Security-Policy', severity: 'medium',
+            message: "script-src allows 'unsafe-inline', which defeats most XSS protection.",
+            fix: 'Use nonces or hashes for inline scripts instead.'
+          });
+        }
+        if (scripts.includes("'unsafe-eval'")) {
+          out.push({
+            header: 'Content-Security-Policy', severity: 'low',
+            message: "script-src allows 'unsafe-eval'.",
+            fix: "Remove eval() usage and drop 'unsafe-eval'."
+          });
+        }
+        if (scripts.includes('*') || scripts.includes('http:') || scripts.includes('https:')) {
+          out.push({
+            header: 'Content-Security-Policy', severity: 'medium',
+            message: 'script-src allows scripts from any host.',
+            fix: 'List the specific origins you load scripts from.'
+          });
+        }
+      }
+      if (!('frame-ancestors' in directives)) {
+        out.push({
+          header: 'Content-Security-Policy', severity: 'info',
+          message: 'No frame-ancestors directive; X-Frame-Options is relied on for clickjacking.',
+          fix: "Add frame-ancestors 'self' (or 'none')."
+        });
+      }
+      return out;
+    }
+
+    function cookieFindings(headers, https) {
+      const out = [];
+      for (const raw of headers.getAll('Set-Cookie') || []) {
+        const name = raw.split('=', 1)[0].trim();
+        const attrs = new Set(
+          raw.split(';').slice(1).map(a => a.trim().split('=')[0].toLowerCase())
+        );
+        const missing = [];
+        if (https && !attrs.has('secure')) missing.push('Secure');
+        if (!attrs.has('httponly')) missing.push('HttpOnly');
+        if (!attrs.has('samesite')) missing.push('SameSite');
+        if (missing.length) {
+          const sev = /sess|auth|token|sid/i.test(name) ? 'medium' : 'low';
+          out.push({
+            header: 'Set-Cookie', severity: sev,
+            message: `Cookie '${name}' is missing ${missing.join(', ')}.`,
+            fix: 'Set cookies with Secure; HttpOnly; SameSite=Lax (or Strict).'
+          });
+        }
+      }
+      return out;
+    }
+
+    function evaluate(url, status, headers) {
+      const https = url.toLowerCase().startsWith('https://');
+      const get = n => headers.get(n);
+      const findings = [];
+      const watched = [
+        'Strict-Transport-Security', 'Content-Security-Policy', 'X-Content-Type-Options',
+        'X-Frame-Options', 'Referrer-Policy', 'Permissions-Policy',
+        'Cross-Origin-Opener-Policy', 'Server', 'X-Powered-By'
+      ];
+      const present = {};
+      for (const h of watched) {
+        const v = get(h);
+        if (v !== null) present[h] = v;
+      }
+
+      if (!https) {
+        findings.push({
+          header: '(transport)', severity: 'high',
+          message: 'The site was served over plain HTTP.',
+          fix: 'Serve everything over HTTPS and redirect HTTP to it.'
+        });
+      }
+
+      const hsts = get('Strict-Transport-Security');
+      if (https) {
+        if (!hsts) {
+          findings.push({
+            header: 'Strict-Transport-Security', severity: 'high',
+            message: 'HSTS is missing.',
+            fix: 'Strict-Transport-Security: max-age=31536000; includeSubDomains'
+          });
+        } else {
+          const m = hsts.match(/max-age=(\d+)/i);
+          if (!m || +m[1] < 15552000) {
+            findings.push({
+              header: 'Strict-Transport-Security', severity: 'low',
+              message: 'HSTS max-age is below 180 days.',
+              fix: 'Use max-age=31536000 (one year).'
+            });
+          }
+        }
+      }
+
+      const csp = get('Content-Security-Policy');
+      if (!csp) {
+        const sev = get('Content-Security-Policy-Report-Only') ? 'low' : 'medium';
+        findings.push({
+          header: 'Content-Security-Policy', severity: sev,
+          message: 'No enforced Content-Security-Policy.',
+          fix: "Start with: default-src 'self'; frame-ancestors 'self'; object-src 'none'"
+        });
+      } else {
+        findings.push(...cspFindings(csp));
+      }
+
+      if ((get('X-Content-Type-Options') || '').trim().toLowerCase() !== 'nosniff') {
+        findings.push({
+          header: 'X-Content-Type-Options', severity: 'medium',
+          message: 'X-Content-Type-Options: nosniff is not set.',
+          fix: 'X-Content-Type-Options: nosniff'
+        });
+      }
+
+      const xfo = (get('X-Frame-Options') || '').trim().toUpperCase();
+      if (xfo !== 'DENY' && xfo !== 'SAMEORIGIN' && !(csp && csp.toLowerCase().includes('frame-ancestors'))) {
+        findings.push({
+          header: 'X-Frame-Options', severity: 'medium',
+          message: 'The page can be framed by any site (clickjacking).',
+          fix: "X-Frame-Options: DENY, or CSP frame-ancestors 'self'"
+        });
+      }
+
+      const rp = (get('Referrer-Policy') || '').trim().toLowerCase();
+      if (!rp) {
+        findings.push({
+          header: 'Referrer-Policy', severity: 'low',
+          message: 'Referrer-Policy is not set.',
+          fix: 'Referrer-Policy: strict-origin-when-cross-origin'
+        });
+      } else if (rp === 'unsafe-url' || rp === 'no-referrer-when-downgrade') {
+        findings.push({
+          header: 'Referrer-Policy', severity: 'low',
+          message: `Referrer-Policy '${rp}' leaks full URLs.`,
+          fix: 'Referrer-Policy: strict-origin-when-cross-origin'
+        });
+      }
+
+      if (!get('Permissions-Policy')) {
+        findings.push({
+          header: 'Permissions-Policy', severity: 'low',
+          message: 'Permissions-Policy is not set.',
+          fix: 'Permissions-Policy: camera=(), microphone=(), geolocation=()'
+        });
+      }
+
+      for (const h of ['Server', 'X-Powered-By', 'X-AspNet-Version']) {
+        const v = get(h);
+        if (v && /\d/.test(v)) {
+          findings.push({
+            header: h, severity: 'low',
+            message: `${h} reveals a software version ('${v}').`,
+            fix: `Remove the version from the ${h} header.`
+          });
+        }
+      }
+
+      findings.push(...cookieFindings(headers, https));
+
+      const score = Math.max(0, 100 - findings.reduce((s, f) => s + (PENALTY[f.severity] || 0), 0));
+      const order = { high: 0, medium: 1, low: 2, info: 3 };
+      findings.sort((a, b) => order[a.severity] - order[b.severity]);
+      return { url, status, score, grade: gradeOf(score), findings, present: headers.present() };
+    }
+
+    const $ = id => document.getElementById(id);
+    const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+    function render() {
+      const url = $('url').value.trim() || 'https://example.com/';
+      const status = +$('status').value || 200;
+      const headers = parseHeaders($('headers').value);
+      const result = evaluate(url, status, headers);
+
+      const box = $('gradeBox');
+      box.textContent = result.grade;
+      box.className = 'grade ' + result.grade;
+      box.setAttribute('aria-label', 'Grade ' + result.grade);
+      $('scorePill').innerHTML = `${result.score}/100<small id="urlLine">${esc(result.url)} (HTTP ${result.status})</small>`;
+
+      const present = Object.entries(result.present);
+      $('presentBox').innerHTML = present.length
+        ? present.map(([k, v]) => `<span title="${esc(v)}">${esc(k)}</span>`).join('')
+        : '<span>no watched headers present</span>';
+
+      if (result.findings.length === 0) {
+        $('findings').innerHTML = '<div class="ok-box">No findings — every check passed.</div>';
+      } else {
+        $('findings').innerHTML = result.findings.map(f => `
+          <div class="finding">
+            <div class="top">
+              <span class="sev ${f.severity}">${f.severity}</span>
+              <span class="hdr">${esc(f.header)}</span>
+            </div>
+            <div class="msg">${esc(f.message)}</div>
+            ${f.fix ? `<div class="fix">fix → <code>${esc(f.fix)}</code></div>` : ''}
+          </div>`).join('');
+      }
+    }
+
+    function applyPreset(name) {
+      const p = PRESETS[name];
+      if (!p) return;
+      $('url').value = p.url;
+      $('headers').value = p.headers;
+      render();
+    }
+
+    document.querySelectorAll('[data-preset]').forEach(btn => {
+      btn.addEventListener('click', () => applyPreset(btn.dataset.preset));
+    });
+    $('runBtn').addEventListener('click', render);
+    $('url').addEventListener('keydown', e => { if (e.key === 'Enter') render(); });
+    ['url', 'headers', 'status'].forEach(id => $(id).addEventListener('input', () => {}));
+
+    applyPreset('insecure');
+  </script>
+</body>
+</html>
